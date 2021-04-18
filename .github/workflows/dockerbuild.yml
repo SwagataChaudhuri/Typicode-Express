@@ -1,0 +1,42 @@
+name: CI / CD with GitHub Actions
+
+on:
+  push:
+    tags:
+      - "*"   
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [14.x]
+    steps:
+    - name: Step 1 -> Checkout main branch from Github
+      uses: actions/checkout@v2
+    - name: Step 2 -> Set Up NodeJS ${{ matrix.node-version }}
+      uses: actions/setup-node@v2
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build --if-present
+    - name: Step 3 -> Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Step 4 -> Fetch Docker Metadata
+      id: meta
+      uses: docker/metadata-action@v3
+      with:
+        images: swagatachaudhuri/typicode-express
+        tags: |
+            type=semver,pattern={{version}}
+    - name: Step 5 -> Build the Docker Image
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
